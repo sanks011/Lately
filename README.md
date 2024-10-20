@@ -13,14 +13,13 @@ Welcome to **Lately** — a dynamic web application designed to streamline task 
 
 ## 🛠️ Technologies Used
 
-- **Frontend**:
+- **Frontend & Backend**:
   - React.js
   - Tailwind CSS
   - Framer Motion
   - React Three Fiber
   - Lucide Icons
-- **Backend**:
-  - Flask (for attendance calculations and class forecasting)
+    
 - **Authentication**:
   - Firebase Google Auth
 
@@ -41,19 +40,9 @@ Follow these steps to run the project locally:
 
 3. **Run the app**:
    ```bash
-   npm run start
+   npm run dev
    ```
 
-4. **Backend setup**:
-   - Navigate to the Flask backend folder.
-   - Install required Python packages:
-     ```bash
-     pip install -r requirements.txt
-     ```
-   - Run the Flask app:
-     ```bash
-     python app.py
-     ```
 
 ## 📂 Project Structure
 
