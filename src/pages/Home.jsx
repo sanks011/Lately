@@ -253,7 +253,7 @@ const Home = () => {
             />
             <Testimonial
               quote="As a teacher, Lately has made tracking my & student attendance so easy. No more problem regarding my schedules!"
-              author="Dr. Sam Ray"
+              author="Dr. Sambhu Rai"
               role="Professor"
             />
           </div>
