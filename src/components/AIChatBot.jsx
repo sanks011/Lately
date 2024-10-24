@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { MessageCircle, X } from 'lucide-react';
 
+const GEMINI_API_KEY = 'AIzaSyAJ7SSBvAQlGPfKOOKEUDhXo-BHlcW-f4s';
+
 const MischievousChatbot = () => {
   const [message, setMessage] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [randomTip, setRandomTip] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
 
   const mischievousTips = [
     "Pro tip: The best notes are no notes 😎",
@@ -27,11 +30,9 @@ const MischievousChatbot = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  const generateResponse = async (userMessage) => {
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -39,16 +40,65 @@ const MischievousChatbot = () => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are a funny cartoon character named Attendo. you are very dank and dark humor subtle jokes and genz sigma and very crazy better than any one can roast anyone peak way now respond to this message: "${message}"`,
+              text: `You are a funny cartoon character named Attendo. You are very dank with dark humor and subtle jokes. You're a GenZ sigma who gives crazy roasts but keeps it fun. and also give crazy excuses to miss the work or bunk classes like realistic excuse everytime. Respond to this message in a fun way: "${userMessage}"`,
             }],
           }],
+          generationConfig: {
+            temperature: 0.9,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            }
+          ]
         }),
       });
+
+      if (!res.ok) {
+        throw new Error('API request failed');
+      }
+
       const data = await res.json();
-      setResponse(data.candidates[0].content.parts[0].text);
+
+      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+        throw new Error('Invalid response format');
+      }
+
+      return data.candidates[0].content.parts[0].text;
+    } catch (error) {
+      console.error('Error generating response:', error);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!message.trim()) {
+      toast.warning('Please type something first! 🤔');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const aiResponse = await generateResponse(message);
+      const newChat = { user: message, ai: aiResponse };
+      setChatHistory(prev => [...prev, newChat]);
+      setResponse(aiResponse);
+      setMessage('');
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Oops! Attendo is taking a nap! 😴 Try again later!');
+      toast.error('Oops! Attendo is having a moment! 😴 Try again!', {
+        position: "bottom-right",
+        autoClose: 3000,
+      });
     } finally {
       setLoading(false);
     }
@@ -56,7 +106,6 @@ const MischievousChatbot = () => {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Chat Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 flex items-center justify-center"
@@ -64,36 +113,36 @@ const MischievousChatbot = () => {
         {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
       </button>
 
-      {/* Chat Window */}
       <div className={`absolute bottom-16 right-0 w-80 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg shadow-xl overflow-hidden transition-all duration-300 transform ${isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-        {/* Random Tip Banner */}
         <div className="bg-indigo-800 bg-opacity-50 p-2 text-white text-sm text-center">
           <div className="animate-bounce">
             {randomTip}
           </div>
         </div>
 
-        {/* Chat Content */}
         <div className="p-4">
           <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
             <span className="text-2xl">😈</span> Attendo
           </h3>
 
-          {/* Chat Messages */}
           <div className="mb-4 h-32 overflow-y-auto bg-white bg-opacity-10 p-3 rounded-lg backdrop-blur-sm">
-            {response && (
-              <div className="text-white mb-2">
-                <strong>Attendo:</strong> {response}
+            {chatHistory.map((chat, index) => (
+              <div key={index} className="mb-2">
+                <div className="text-white opacity-80 text-sm">
+                  <strong>You:</strong> {chat.user}
+                </div>
+                <div className="text-white">
+                  <strong>Attendo:</strong> {chat.ai}
+                </div>
               </div>
-            )}
-            {!response && (
+            ))}
+            {!chatHistory.length && (
               <div className="text-white opacity-70 italic text-sm">
-                Ready to give you some questionable advice... 😏
+                Ready to give you some questionable advice & crazy excuses... 😏
               </div>
             )}
           </div>
 
-          {/* Input Form */}
           <form onSubmit={handleSubmit} className="space-y-2">
             <input
               type="text"
