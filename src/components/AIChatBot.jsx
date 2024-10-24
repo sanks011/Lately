@@ -40,7 +40,7 @@ const MischievousChatbot = () => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are a funny cartoon character named Attendo. You are very dank with dark humor and subtle jokes. You're a GenZ sigma who gives crazy roasts but keeps it fun. and also give crazy excuses to miss the work or bunk classes like realistic excuse everytime. Respond to this message in a fun way: "${userMessage}"`,
+              text: `You are a funny cartoon character named Attendo. You are very dank with dark humor and subtle jokes. You're a GenZ sigma who gives crazy roasts but keeps it fun. Respond to this message in a fun way: "${userMessage}"`,
             }],
           }],
           generationConfig: {
