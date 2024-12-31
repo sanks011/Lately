@@ -14,6 +14,8 @@ function CheckAttendance() {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [currentDay, setCurrentDay] = useState("");
+  const [startDate, setStartDate] = useState(""); // New state for start date
+  const [holidays, setHolidays] = useState({}); 
   const [newClass, setNewClass] = useState({
     subject: "",
     startTime: "",
@@ -69,44 +71,43 @@ function CheckAttendance() {
         const subjectsRef = ref(db, `subjects/${user.uid}`);
         const scheduleRef = ref(db, `schedules/${user.uid}`);
         const attendanceRef = ref(db, `attendance/${user.uid}`);
+        const holidaysRef = ref(db, `holidays/${user.uid}`);
+        const [subjectsSnapshot, scheduleSnapshot, attendanceSnapshot, holidaysSnapshot] =
+        await Promise.all([
+          get(subjectsRef),
+          get(scheduleRef),
+          get(attendanceRef),
+          get(holidaysRef),
+        ]);
 
-        const [subjectsSnapshot, scheduleSnapshot, attendanceSnapshot] =
-          await Promise.all([
-            get(subjectsRef),
-            get(scheduleRef),
-            get(attendanceRef),
-          ]);
+      setSubjects(subjectsSnapshot.exists() ? subjectsSnapshot.val() : []);
+      setSchedule(scheduleSnapshot.exists() ? scheduleSnapshot.val() : {});
+      setAttendance(attendanceSnapshot.exists() ? attendanceSnapshot.val() : {});
+      setHolidays(holidaysSnapshot.exists() ? holidaysSnapshot.val() : {}); // Set holidays
 
-        setSubjects(subjectsSnapshot.exists() ? subjectsSnapshot.val() : []);
-        setSchedule(scheduleSnapshot.exists() ? scheduleSnapshot.val() : {});
-        setAttendance(
-          attendanceSnapshot.exists() ? attendanceSnapshot.val() : {}
-        );
-
-        // Fetch attendance criteria
-        if (
-          scheduleSnapshot.exists() &&
-          scheduleSnapshot.val().attendanceCriteria
-        ) {
-          setAttendanceCriteria(scheduleSnapshot.val().attendanceCriteria);
-        }
-
-        // Fetch marked status for today
-        const today = new Date().toLocaleDateString("en-US", {
-          weekday: "long",
-        });
-        const markedStatus = {};
-        if (attendanceSnapshot.exists()) {
-          Object.keys(attendanceSnapshot.val()).forEach((subject) => {
-            markedStatus[subject] =
-              attendanceSnapshot.val()[subject].markedToday || {};
-          });
-        }
-        setMarkedToday(markedStatus);
-
-        setLoading(false);
+      // Set start date if exists
+      if (scheduleSnapshot.exists() && scheduleSnapshot.val().startDate) {
+        setStartDate(scheduleSnapshot.val().startDate);
       }
-    };
+
+      if (scheduleSnapshot.exists() && scheduleSnapshot.val().attendanceCriteria) {
+        setAttendanceCriteria(scheduleSnapshot.val().attendanceCriteria);
+      }
+
+      const today = new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+      });
+      const markedStatus = {};
+      if (attendanceSnapshot.exists()) {
+        Object.keys(attendanceSnapshot.val()).forEach((subject) => {
+          markedStatus[subject] = attendanceSnapshot.val()[subject].markedToday || {};
+        });
+      }
+      setMarkedToday(markedStatus);
+
+      setLoading(false);
+    }
+  };
 
     fetchData();
   }, []);
@@ -202,6 +203,22 @@ function CheckAttendance() {
     }
   };
 
+  const handleMarkHoliday = async (date) => {
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const holidaysRef = ref(db, `holidays/${user.uid}`);
+        const updatedHolidays = { ...holidays, [date]: true };
+        await set(holidaysRef, updatedHolidays);
+        setHolidays(updatedHolidays);
+        toast.success("Day marked as holiday successfully");
+      } catch (error) {
+        toast.error("Error marking holiday");
+        console.error("Error marking holiday:", error);
+      }
+    }
+  };
+
   const handleSetSchedule = async (e) => {
     e.preventDefault();
     const user = auth.currentUser;
@@ -227,7 +244,10 @@ function CheckAttendance() {
           ...(updatedSchedule[currentDay] || []),
           newClass,
         ];
-        await set(scheduleRef, { ...updatedSchedule, attendanceCriteria });
+        await set(scheduleRef, { 
+          ...updatedSchedule, 
+          attendanceCriteria,
+          startDate });
         setSchedule(updatedSchedule);
         toast.success("Schedule updated successfully");
         setEditMode(false);
@@ -409,6 +429,18 @@ function CheckAttendance() {
       animate="visible"
     >
       <h2 className="text-2xl font-bold text-white dark:text-gray-100 mb-4">Edit Schedule</h2>
+      
+      {/* Start Date Field */}
+      <div className="mb-4">
+        <label className="block text-white dark:text-gray-100 mb-2">Schedule Start Date</label>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="w-full px-4 py-2 rounded-lg bg-white/20 dark:bg-gray-700/50 backdrop-blur-sm text-white dark:text-gray-100"
+        />
+      </div>
+
       <div className="mb-4">
         <label className="block text-white dark:text-gray-100 mb-2">Attendance Criteria (%)</label>
         <input
@@ -545,6 +577,12 @@ function CheckAttendance() {
 
   const renderTodaySchedule = () => {
     const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    const todayDate = new Date().toISOString().split('T')[0];
+    const isHoliday = holidays[todayDate];
+
+    // Check if today's date is before start date
+    const isBeforeStartDate = startDate && new Date(todayDate) < new Date(startDate);
+
     return (
       <motion.div
         className="bg-white/10 dark:bg-gray-800/50 backdrop-blur-md rounded-lg p-6 mb-8"
@@ -552,10 +590,28 @@ function CheckAttendance() {
         initial="hidden"
         animate="visible"
       >
-        <h3 className="text-2xl font-bold text-white dark:text-gray-100 mb-4">
-          Today's Schedule ({today})
-        </h3>
-        {schedule[today] ? (
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-2xl font-bold text-white dark:text-gray-100">
+            Today's Schedule ({today})
+          </h3>
+          {!isHoliday && !isBeforeStartDate && (
+            <motion.button
+              onClick={() => handleMarkHoliday(todayDate)}
+              className="bg-yellow-500 dark:bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 dark:hover:bg-yellow-700"
+              variants={buttonVariants}
+              whileHover="hover"
+              whileTap="tap"
+            >
+              Mark as Holiday
+            </motion.button>
+          )}
+        </div>
+
+        {isBeforeStartDate ? (
+          <p className="text-white dark:text-gray-100">Schedule hasn't started yet. Start date: {startDate}</p>
+        ) : isHoliday ? (
+          <p className="text-white dark:text-gray-100">Today is marked as a holiday.</p>
+        ) : schedule[today] ? (
           <div className="space-y-4">
             {schedule[today].map((cls, index) => {
               const sessionKey = `${cls.subject}-${today}-${cls.startTime}-${cls.endTime}`;
